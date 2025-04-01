@@ -665,6 +665,23 @@ end subroutine
 !=== END GTIFF GET_KEY_VALUE ============
  
 !MISC Functions =====================
+logical function hasGKey(tiff,i,keyId)
+   implicit none
+   type(TIFF_FILE), intent(in) ::tiff
+   integer        , intent(in) ::i, keyId
+   integer :: t
+   hasGKey=.false.
+   if ( i <= tiff%n_imgs ) then
+      do t=1,tiff%Gdir%n_keys
+          if ( tiff%Gdir%key(t)%Id == keyId ) then
+             hasGKey=.true.
+             return
+          endif
+      enddo
+   endif
+end function
+
+
 logical function hasTag(tiff,i,tagId)
    implicit none
    type(TIFF_FILE), intent(in) ::tiff
