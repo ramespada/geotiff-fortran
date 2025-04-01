@@ -145,6 +145,7 @@ module GeoTIFF
   integer (kind=8), parameter :: intAdj8 = 4294967296_8  ! adjustment for 8-byte unsigned integers
   integer (kind=4), parameter :: intAdj4 = 65536_4       ! adjustment for 4-byte unsigned integers
   integer (kind=2), parameter :: intAdj2 = 256_2         ! adjustment for 2-byte unsigned integers
+  integer (kind=1), parameter :: intAdj1 = 8_1           ! adjustment for 1-byte unsigned integers
 
   !GeoTIFF Dir and Keys:  --------------------
   type GEO_KEY
@@ -167,7 +168,7 @@ module GeoTIFF
   !-------------------------------------------
   type TIFF_FILE                     !Representation of TIFF file
      integer(kind=4)    :: iUnit     ! id of file (for open and close commands)
-     character(50)      :: path      ! path to file
+     character(256)      :: path      ! path to file
      !Header
      character(len=2)   :: byteOrder ! II/MM
      integer            :: magic_num ! 42
@@ -182,7 +183,8 @@ module GeoTIFF
      integer            :: compression=1    !1=uncompressed, 32773=PackBits
      integer            :: planarConf =1    !1=chunky format, 2=planar format
      integer            :: orientation=1    !
-     integer            :: samplesPerPixel=1   !1=[0,0]
+     integer            :: samplesPerPixel=1!1=[0,0]
+     integer            :: sampleFormat=1   !1=unsigned integer, 2=two component signed integer, 3=IEEE float, 4=undefined
      !GeoTIFF parameters:
      double precision ::  trans(16) =0.0 !transformation matrix indices -> coordinates
      double precision ::  tiePt(6)  =0.0 ![i,j,k,x,y,z] values
@@ -220,18 +222,25 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
         call TIFF_GET_TAG_VALUE(tiff, 1, TIFF_Orientation        , tiff%orientation    ) 
         call TIFF_GET_TAG_VALUE(tiff, 1, TIFF_SamplesPerPixel    , tiff%samplesPerPixel) ! multi-band!
 
+        if (hasTag(tiff, 1, TIFF_SampleFormat)) then
+             call TIFF_GET_TAG_VALUE(tiff, 1, TIFF_SampleFormat  , tiff%sampleFormat) ! multi-band!
+        else
+            print '("SampleFormat not specified. Asuming unsigned integer.")'
+            tiff%sampleFormat=1
+        end if
+
         ![  ] CHECKS =====================!
         !if ( tiff%compression /= 1 ) stop 'Only uncompressed TIFFs supported!.'
         if ( tiff%planarConf /= 1 ) stop 'Planar configuration not supported.'
         !=================================!
         
         ![  ] Read GeoKeys from GeoDir
-        if ( gotTag(tiff, 1, GTIFF_GeoKeyDirectoryTag ) ) then 
+        if ( hasTag(tiff, 1, GTIFF_GeoKeyDirectoryTag ) ) then 
             print*, "GeoTIFF File!"
             call GTIFF_READ_GDIR(tiff)
 
             !Raster coordinates and scale parameters:
-            if ( gotTag(tiff,1, GTIFF_ModelTransformationTag) ) then
+            if ( hasTag(tiff,1, GTIFF_ModelTransformationTag) ) then
                call TIFF_GET_TAG_VALUE(tiff, 1, GTIFF_ModelTransformationTag, tiff%trans )
             else
                call TIFF_GET_TAG_VALUE(tiff, 1, GTIFF_ModelTiePointTag      , tiff%tiePt)
@@ -241,9 +250,9 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
             print*, "Error: Not a GeoTIFF File!"
         endif
 
-        if      ( gotTag(tiff,1, TIFF_TileOffsets ) ) then 
+        if      ( hasTag(tiff,1, TIFF_TileOffsets ) ) then 
            print*, " Tiled type!"; tiff%ImgType='tile'
-        else if ( gotTag(tiff, 1, TIFF_StripOffsets) ) then
+        else if ( hasTag(tiff, 1, TIFF_StripOffsets) ) then
            print*, " Strip type!"; tiff%ImgType='strip'
         else
            stop "Error Image type not identified!"
@@ -656,16 +665,16 @@ end subroutine
 !=== END GTIFF GET_KEY_VALUE ============
  
 !MISC Functions =====================
-logical function gotTag(tiff,i,tagId)
+logical function hasTag(tiff,i,tagId)
    implicit none
    type(TIFF_FILE), intent(in) ::tiff
    integer        , intent(in) ::i, tagId
    integer :: t
-   gotTag=.false.
+   hasTag=.false.
    if ( i <= tiff%n_imgs ) then
       do t=1,tiff%IFD(i)%n_tags
           if ( tiff%IFD(i)%tag(t)%Id == tagId ) then
-             gotTag=.true.
+             hasTag=.true.
              return
           endif
       enddo
@@ -920,6 +929,12 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    !
    integer :: i,j,k,b!,e!,recNum
    integer(kind=1), allocatable :: values_1(:)  !array of bytes of hole strip/tile
+   !temporal vars:
+   real   (kind=8) :: tmpFlt_8 ! double precission floating point (8-bytes)
+   real   (kind=4) :: tmpFlt_4 ! single precission floating point (4-bytes)
+   integer(kind=4) :: tmpInt_4 ! 
+   integer(kind=2) :: tmpInt_2 !
+   integer(kind=1) :: tmpInt_1 !
 
    !get Image parameters:
    call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_ImageWidth     , imageWidth     )
@@ -995,12 +1010,65 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
          !change indices values based on orientation    
          call change_index_orientation(tiff%orientation,e_i,e_j,imageWidth,imageLength)
 
-         !transfer (big vs little endian)
-         if (tiff%swapByte) then
-             IMG(e_i,e_j) = transfer( values_1(k+bytesPersample:k:-1), IMG(1,1) )
-         else
-             IMG(e_i,e_j) = transfer( values_1(k:k+bytesPerSample:1) , IMG(1,1) )
-         end if
+         select case(bytesPerSample)
+          case(1)
+          !1-byte data
+             if (tiff%swapByte) then
+                 tmpInt_1=transfer( values_1(k+2:k:-1), tmpInt_1 )
+             else                                                                    
+                 tmpInt_1= transfer( values_1(k:k+2:1), tmpInt_1 )
+             end if
+             ! Check for unsigned integer SampleFormat; adjust for negative values if needed
+             if (tiff%SampleFormat == 1 .and. tmpInt_1 < 0 ) tmpint_1 = tmpint_1 + intAdj1
+                                                                                             
+             IMG(e_i,e_j) =real(tmpInt_1)
+
+          case(2)
+          !2-byte data (commonly integers)
+             if (tiff%swapByte) then
+                 tmpInt_2=transfer( values_1(k+2:k:-1), tmpInt_2 )
+             else                                                                    
+                 tmpInt_2= transfer( values_1(k:k+2:1), tmpInt_2 )
+             end if
+             ! Check for unsigned integer SampleFormat; adjust for negative values if needed
+             if (tiff%SampleFormat == 1 .and. tmpInt_2 < 0 ) tmpint_2 = tmpint_2 + intAdj2
+
+             IMG(e_i,e_j) =real(tmpInt_2)
+
+          case(4)
+          !4-byte data (it could be integer or float)
+             if (tiff%SampleFormat == 3 ) then
+             ! transfer to 4-byte floating point (real)
+                if (tiff%swapByte) then
+                    tmpFlt_4=transfer( values_1(k+4:k:-1), tmpFlt_4 )
+                else                                                                    
+                    tmpFlt_4= transfer( values_1(k:k+4:1), tmpFlt_4 )
+                end if
+                IMG(e_i,e_j) =real(tmpFlt_4)
+
+             else
+             ! transfer to signed 4-byte integer
+                if (tiff%swapByte) then
+                    tmpInt_4=transfer( values_1(k+4:k:-1), tmpInt_4 )
+                else                                                                    
+                    tmpInt_4= transfer( values_1(k:k+4:1), tmpInt_4 )
+                end if
+
+                ! Check for unsigned integer SampleFormat; adjust for negative values if needed
+                if (tiff%SampleFormat == 1 .and. tmpInt_4 < 0 ) tmpint_4 = tmpint_4 + intAdj4
+
+                IMG(e_i,e_j) =real(tmpInt_4)
+
+             end if
+          case(8)
+          !8-byte data (normally floating point double precission)
+             if (tiff%swapByte) then
+                 tmpFlt_8=transfer( values_1(k+8:k:-1), tmpFlt_8 )
+             else                                                                    
+                 tmpFlt_8= transfer( values_1(k:k+8:1), tmpFlt_8 )
+             end if
+             IMG(e_i,e_j) =real(tmpFlt_8)
+         end select
       enddo
       !values_1=0
    end do!offsets
@@ -1018,7 +1086,7 @@ subroutine GTIFF_get_Image_Coordinates(tiff,x,y)
    real             :: x0,y0,dx,dy
    integer :: i,j,ii,jj
 
-   if ( gotTag(tiff,1, GTIFF_ModelTransformationTag) ) then
+   if ( hasTag(tiff,1, GTIFF_ModelTransformationTag) ) then
       M=sngl(reshape(tiff%trans,[4,4]))
       do i=1,tiff%nx
         do j=1,tiff%ny
@@ -1029,9 +1097,9 @@ subroutine GTIFF_get_Image_Coordinates(tiff,x,y)
         enddo
       enddo
    else
-      i0= int(tiff%tiePt(1) ); j0= int(tiff%tiePt(2) );
-      x0=real(tiff%tiePt(4) ); y0=real(tiff%tiePt(5) )
-      dx=real(tiff%scale(1));  dy=real(tiff%scale(2))
+      i0= int(tiff%tiePt(1)); j0= int(tiff%tiePt(2))
+      x0=real(tiff%tiePt(4)); y0=real(tiff%tiePt(5))
+      dx=real(tiff%scale(1)); dy=real(tiff%scale(2))
       do i=1,tiff%nx
         do j=1,tiff%ny
            ii=i;jj=j

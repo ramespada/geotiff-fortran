@@ -8,7 +8,7 @@ program test_tiff
   integer            :: ierr
   type(TIFF_file)    :: my_tiff
 
-  integer              :: wid,len
+  integer              :: wid,len,sampleFMT
   !Test geotiff variables:
   integer :: crs
 
@@ -20,7 +20,7 @@ program test_tiff
   real, allocatable  :: x(:,:), y(:,:) 
   !Netcdf
   integer            :: ncid,x_dim_id,y_dim_id,var_id
-  character(len=100) :: file_path
+  character(len=256) :: file_path
   !integer :: i,j,k
  
   ! Check if the command line argument is provided
@@ -35,6 +35,9 @@ program test_tiff
    call TIFF_Open(124,trim(file_path) ,'r', my_tiff, ierr)      !TIFF little-endian
    if (ierr==0) then
 
+
+      call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_SampleFormat , SampleFMT)
+      print*,"SampleFormat:",SampleFmt
       ![OK] TIFF_GET_TAG_VALUE(tiff, img_id, tag_id, value)
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageWidth , wid)
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageLength, len)
