@@ -3,8 +3,8 @@
 FC  =gfortran
 LIBS= -L/usr/lib/x86_64-linux-gnu -lnetcdf -lnetcdff -lm
 INC = -I/usr/include
-
-FCFLAGS=-O2 -ffree-line-length-none -Wall##-Wunused #
+DEBUG=-g -fbacktrace
+FCFLAGS=-O0 -ffree-line-length-none -Wall ${DEBUG}##-Wunused #
 LDFLAGS=
 
 OBJS=geotiff.o test.o

@@ -1,6 +1,6 @@
 program test_tiff
 
-  use GeoTIFF
+  use GTIFF
   use netcdf  !only for debugging purposes
 
   implicit none
@@ -13,7 +13,7 @@ program test_tiff
   integer :: crs
 
   !double precision,allocatable :: image(:,:)
-  real,allocatable              :: image(:,:)
+  real, allocatable             :: image(:,:)
   !integer,allocatable          :: image(:,:)
 
   ! geotiff coordinates
@@ -34,7 +34,6 @@ program test_tiff
   !(1 PART) Read and extract data from TIFF:
    call TIFF_Open(124,trim(file_path) ,'r', my_tiff, ierr)      !TIFF little-endian
    if (ierr==0) then
-
 
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_SampleFormat , SampleFMT)
       print*,"SampleFormat:",SampleFmt
@@ -73,9 +72,9 @@ program test_tiff
 
    !Abro NetCDF y guardo variables de salida
    call check(nf90_open('image.nc', nf90_write, ncid ))
-      call check(nf90_inq_varid(ncid, 'image'    ,var_id));call check(nf90_put_var(ncid, var_id,reshape(image,[wid,len]) )) 
-      call check(nf90_inq_varid(ncid, 'lon',var_id));call check(nf90_put_var(ncid, var_id,x )) 
-      call check(nf90_inq_varid(ncid, 'lat' ,var_id));call check(nf90_put_var(ncid, var_id,y )) 
+      call check(nf90_inq_varid(ncid, 'image',var_id));call check(nf90_put_var(ncid, var_id,reshape(image,[wid,len]) )) 
+      call check(nf90_inq_varid(ncid, 'lon'  ,var_id));call check(nf90_put_var(ncid, var_id,x )) 
+      call check(nf90_inq_varid(ncid, 'lat'  ,var_id));call check(nf90_put_var(ncid, var_id,y )) 
    call check(nf90_close(ncid))
    !DEBUG =======================
 

@@ -1,4 +1,4 @@
-module GeoTIFF
+module GTIFF
 ! program:        Fortran GeoTIFF Library
 ! description:    Module with procedures for reading and writing GeoTIFF files.
 ! programmed by:  Ramiro A. Espada
@@ -166,16 +166,16 @@ module GeoTIFF
      integer          :: offset    ! next IFD offset or 0 (end IFD)   !4-bytes
   end type
   !-------------------------------------------
-  type TIFF_FILE                     !Representation of TIFF file
-     integer(kind=4)    :: iUnit     ! id of file (for open and close commands)
-     character(256)      :: path      ! path to file
+  type TIFF_FILE                            !Representation of TIFF file
+     integer(kind=4)    :: iUnit            ! id of file (for open and close commands)
+     character(256)      :: path            ! path to file
      !Header
-     character(len=2)   :: byteOrder ! II/MM
-     integer            :: magic_num ! 42
-     integer            :: offset    ! offset (location from begining in bytes) of 1st IFD (IMPORTANT: first byte = 0!)
-     type (TIFF_IFD)    :: IFD(5)    ! Image File Directory (IFD) list
-     type (GEO_DIR)     :: gDir      ! GeoDir with GeoKeys
-     integer            :: n_imgs    !total number of tags, total number of ifds
+     character(len=2)   :: byteOrder        ! II/MM
+     integer            :: magic_num        ! 42
+     integer            :: offset           ! offset (location from begining in bytes) of 1st IFD (IMPORTANT: first byte = 0!)
+     type (TIFF_IFD)    :: IFD(5)           ! Image File Directory (IFD) list
+     type (GEO_DIR)     :: gDir             ! GeoDir with GeoKeys
+     integer            :: n_imgs           ! total number of ifds
      !Important extra parameters:
      integer            :: nx,ny            !nx, ny
      logical            :: swapByte=.false.    
@@ -186,9 +186,9 @@ module GeoTIFF
      integer            :: samplesPerPixel=1!1=[0,0]
      integer            :: sampleFormat=1   !1=unsigned integer, 2=two component signed integer, 3=IEEE float, 4=undefined
      !GeoTIFF parameters:
-     double precision ::  trans(16) =0.0 !transformation matrix indices -> coordinates
-     double precision ::  tiePt(6)  =0.0 ![i,j,k,x,y,z] values
-     double precision ::  scale(3)  =0.0 ![dx,dy,dz]
+     double precision ::  trans(16) =0.0    !transformation matrix indices -> coordinates
+     double precision ::  tiePt(6)  =0.0    ![i,j,k,x,y,z] values
+     double precision ::  scale(3)  =0.0    ![dx,dy,dz]
   end type
   !-------------------------------------------
 contains
@@ -223,7 +223,7 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
         call TIFF_GET_TAG_VALUE(tiff, 1, TIFF_SamplesPerPixel    , tiff%samplesPerPixel) ! multi-band!
 
         if (hasTag(tiff, 1, TIFF_SampleFormat)) then
-             call TIFF_GET_TAG_VALUE(tiff, 1, TIFF_SampleFormat  , tiff%sampleFormat) ! multi-band!
+             call TIFF_GET_TAG_VALUE(tiff, 1, TIFF_SampleFormat  , tiff%sampleFormat) ! data representation
         else
             print '("SampleFormat not specified. Asuming unsigned integer.")'
             tiff%sampleFormat=1
@@ -235,7 +235,7 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
         !=================================!
         
         ![  ] Read GeoKeys from GeoDir
-        if ( hasTag(tiff, 1, GTIFF_GeoKeyDirectoryTag ) ) then 
+        if ( hasTag(tiff, 1, GTIFF_GeoKeyDirectoryTag) ) then 
             print*, "GeoTIFF File!"
             call GTIFF_READ_GDIR(tiff)
 
@@ -247,7 +247,7 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
                call TIFF_GET_TAG_VALUE(tiff, 1, GTIFF_ModelPixelScaleTag    , tiff%scale)
             end if
         else
-            print*, "Error: Not a GeoTIFF File!"
+            print*, "WARNING: GeoKeyDirectory Tag not found."
         endif
 
         if      ( hasTag(tiff,1, TIFF_TileOffsets ) ) then 
@@ -255,8 +255,9 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
         else if ( hasTag(tiff, 1, TIFF_StripOffsets) ) then
            print*, " Strip type!"; tiff%ImgType='strip'
         else
-           stop "Error Image type not identified!"
+           stop "ERROR. Image type not identified!"
         end if
+
      case ('w','W','write','WRITE','Write')
         stop "Write option not supported yet!"
         
@@ -488,6 +489,9 @@ subroutine get_tag_values_int(tiff,i,tagId,values)  !for INTEGERs
    logical :: found=.false.
    integer(kind=1), allocatable    :: values_1(:)
    integer :: c
+   integer(kind=2) :: tmpInt2
+   integer(kind=4) :: tmpInt4
+
    call get_tag_parameters(tiff,i,tagId,typ,cnt,off,found)
    if (found) then
    siz=typeSize(typ)
@@ -496,18 +500,42 @@ subroutine get_tag_values_int(tiff,i,tagId,values)  !for INTEGERs
       else
          allocate(values_1(siz*cnt))
          call get_field_as_byte_array(tiff,off,values_1) !,siz,cnt
-         do c=1,cnt
-            if (tiff%swapByte) then
-                values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), int(1))
-            else
-                values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), int(1))
-            end if
-            if ( values(c) < 0) then
-                if ( typ == 3 ) values(c)=values(c)+intAdj4   !short (2-bytes) unsigned
-                if ( typ == 4 ) values(c)=values(c)+intAdj4   !long  (4-bytes) unsigned
-            endif
-         enddo 
-         deallocate(values_1)
+
+         if ( typ == 3 ) then
+            do c=1,cnt
+               if (tiff%swapByte) then
+                   values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), tmpInt2)
+               else
+                   values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), tmpInt2)
+               end if
+               if ( values(c) < 0) values(c)=values(c)+intAdj2   !short (2-bytes) unsigned
+            enddo
+            deallocate(values_1)
+         end if
+         if ( typ == 4 )  then
+            do c=1,cnt
+               if (tiff%swapByte) then
+                   values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), tmpInt4)
+               else
+                   values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), tmpInt4)
+               end if
+               if ( values(c) < 0) values(c)=values(c)+intAdj4   !short (2-bytes) unsigned
+            enddo
+            deallocate(values_1)
+         end if
+
+         !do c=1,cnt
+         !   if (tiff%swapByte) then
+         !       values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), int(1,kind=4))
+         !   else
+         !       values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), int(1,kind=4))
+         !   end if
+         !   if ( values(c) < 0) then
+         !       if ( typ == 3 ) values(c)=values(c)+intAdj4   !short (2-bytes) unsigned
+         !       if ( typ == 4 ) values(c)=values(c)+intAdj4   !long  (4-bytes) unsigned
+         !   endif
+         !enddo 
+         !deallocate(values_1)
       endif
    endif
 end subroutine
@@ -588,7 +616,7 @@ subroutine get_tag_values_char(tiff,i,tagId,values)  !for CHARACTER
          allocate(values_1(siz*cnt))
          call get_field_as_byte_array(tiff,off,values_1) !,siz,cnt
          do c=1,cnt
-            values(c:c)=transfer(values_1(c)                 , values(1:1))
+            values(c:c)=transfer(values_1(c), values(1:1))
          enddo 
          deallocate(values_1)
       endif
@@ -744,7 +772,7 @@ subroutine get_field_as_byte_array(tiff,offset,values_1)!,siz,cnt
   integer(kind=1),intent(inout)  :: values_1(:) !1-byte elements array
   integer :: i
   do i=1,size(values_1)
-        read(unit=tiff%iUnit, rec=offset+1+i-1 ) values_1(i)
+     read(unit=tiff%iUnit, rec=offset+1+i-1 ) values_1(i)
   enddo
 end subroutine
 
@@ -966,13 +994,13 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    !Get strip/tile parameters:
    SELECT CASE(tiff%ImgType)
     CASE ("strip")
-      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_RowsPerStrip   ,rowsPerStrip )
+      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_RowsPerStrip, rowsPerStrip )
       stripsPerImage=floor(real((imageLength+rowsPerStrip-1)/rowsPerStrip))
 
       allocate(Offsets   (stripsPerImage))
       allocate(byteCounts(stripsPerImage))
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_StripOffsets   ,Offsets   )
-      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_StripByteCounts,ByteCounts)
+      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_StripByteCounts,byteCounts)
 
       n_samples=rowsPerStrip*imageWidth !samplesPerStrip
     CASE ("tile")
@@ -986,15 +1014,14 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
       allocate(Offsets   (tilesPerImage))
       allocate(byteCounts(tilesPerImage))
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileOffsets    ,Offsets    )
-      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileByteCounts ,bytecounts )
+      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileByteCounts ,byteCounts )
       n_samples=tileWidth*tileLength  !samplesperTile
      CASE DEFAULT
       stop "TIFF type not a strip nor a tile!"
    END SELECT
- 
+
    allocate(values_1(n_samples*bytesPerSample))
    do i=1,size(Offsets)
-     
       !read hole strip or tile (because each strip/tile is compressed separately)
       do b=1,byteCounts(i)
          read(tiff%iUnit, rec=Offsets(i)+b) values_1(b)
