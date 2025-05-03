@@ -4,6 +4,8 @@ module GTIFF
 ! programmed by:  Ramiro A. Espada
 ! date:           May, 2024.
 !
+  use zlib
+
   implicit none
   !save
   !private
@@ -14,6 +16,7 @@ module GTIFF
   !public GTIFF_GET_KEY_VALUE
   !public TIFF_FILE,TIFF_IFD,TIFF_TAG
  
+  integer, parameter :: MAX_IFD=15
   !include 'tags.ext'
   !List of supported TIFF Tags (and it's TagID)
   integer :: TIFF_NewSubfileType          = 254  !
@@ -173,14 +176,14 @@ module GTIFF
      character(len=2)   :: byteOrder        ! II/MM
      integer            :: magic_num        ! 42
      integer            :: offset           ! offset (location from begining in bytes) of 1st IFD (IMPORTANT: first byte = 0!)
-     type (TIFF_IFD)    :: IFD(5)           ! Image File Directory (IFD) list
+     type (TIFF_IFD)    :: IFD(MAX_IFD)     ! Image File Directory (IFD) list
      type (GEO_DIR)     :: gDir             ! GeoDir with GeoKeys
      integer            :: n_imgs           ! total number of ifds
      !Important extra parameters:
      integer            :: nx,ny            !nx, ny
      logical            :: swapByte=.false.    
      character(5)       :: ImgType='strip'  !'strip' / 'tile'
-     integer            :: compression=1    !1=uncompressed, 32773=PackBits
+     integer            :: compression=1    !1=None, 32773=PackBits, 2:Huffman, 5:LZW, 8:DEFLATE (zlib).
      integer            :: planarConf =1    !1=chunky format, 2=planar format
      integer            :: orientation=1    !
      integer            :: samplesPerPixel=1!1=[0,0]
@@ -211,6 +214,7 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
 
         ![OK] Read Header
         call TIFF_READ_HEADER(tiff)  
+
         ![OK] Read all IFDs
         call TIFF_READ_IFDS(tiff)
       
@@ -230,8 +234,9 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
         end if
 
         ![  ] CHECKS =====================!
-        !if ( tiff%compression /= 1 ) stop 'Only uncompressed TIFFs supported!.'
-        if ( tiff%planarConf /= 1 ) stop 'Planar configuration not supported.'
+        if ( tiff%planarConf  /= 1 ) stop 'Planar configuration not supported.'
+        if ( tiff%compression == 2 ) stop 'Huffman bilevel compression not supported!.'
+        if ( tiff%compression == 5 ) stop 'LZW compression not supported (yet)!.'
         !=================================!
         
         ![  ] Read GeoKeys from GeoDir
@@ -317,6 +322,9 @@ subroutine TIFF_READ_IFDs(tiff)
   i=1
   do while (tmp_offset /= 0) !
      print '("   Image File Directory (IFD): ",I6)', i
+
+     if (i > size(tiff%IFD) ) stop 'Too many IFDs. Change max number of IFDs admitted for TIFF files in the source code.'
+
      tiff%IFD(i)%offset=tmp_offset 
 
      read(unit=tiff%iUnit, rec=tmp_offset+1) ntags_1(1) ! # tags (1)
@@ -329,7 +337,7 @@ subroutine TIFF_READ_IFDs(tiff)
      end if
 
      print '("    # of Tags in IFD: ",I12)', tiff%IFD(i)%n_Tags 
-     allocate(tiff%IFD(i)%tag( tiff%IFD(i)%n_Tags ))
+     if ( .not. allocated(tiff%IFD(i)%tag) ) allocate( tiff%IFD(i)%tag( tiff%IFD(i)%n_Tags ))
 
      do t=1,tiff%IFD(i)%n_tags
 
@@ -374,10 +382,11 @@ subroutine TIFF_READ_IFDs(tiff)
      else
         tmp_offset    = transfer(ioff_1        , tmp_offset)
      end if
-     print '("   IFD offset: ",i3)',tmp_offset
+     print '("   IFD offset: ",i5)',tmp_offset
      i=i+1
   end do
   tiff%n_imgs=i-1
+
 end subroutine
 
 subroutine GTIFF_READ_GDIR(tiff)
@@ -524,18 +533,6 @@ subroutine get_tag_values_int(tiff,i,tagId,values)  !for INTEGERs
             deallocate(values_1)
          end if
 
-         !do c=1,cnt
-         !   if (tiff%swapByte) then
-         !       values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), int(1,kind=4))
-         !   else
-         !       values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), int(1,kind=4))
-         !   end if
-         !   if ( values(c) < 0) then
-         !       if ( typ == 3 ) values(c)=values(c)+intAdj4   !short (2-bytes) unsigned
-         !       if ( typ == 4 ) values(c)=values(c)+intAdj4   !long  (4-bytes) unsigned
-         !   endif
-         !enddo 
-         !deallocate(values_1)
       endif
    endif
 end subroutine
@@ -982,9 +979,9 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    integer(kind=1) :: tmpInt_1 !
 
    !get Image parameters:
-   call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_ImageWidth     , imageWidth     )
-   call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_ImageLength    , imageLength    )
-   call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_BitsPerSample  , bitsPerSample  )
+   call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_ImageWidth   , imageWidth   )
+   call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_ImageLength  , imageLength  )
+   call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_BitsPerSample, bitsPerSample)
    
    if ( tiff%samplesPerPixel /= 1 ) stop "Multi-band images not supported yet."
    if ( tiff%orientation     /= 1 ) stop "Only orientation=1 supported yet.   "
@@ -1003,9 +1000,10 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_StripByteCounts,byteCounts)
 
       n_samples=rowsPerStrip*imageWidth !samplesPerStrip
+
     CASE ("tile")
-      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileWidth      ,tileWidth    )
-      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileLength     ,tileLength   )
+      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileWidth      ,tileWidth )
+      call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileLength     ,tileLength)
 
       TilesAcross   = (ImageWidth  + TileWidth  - 1) / TileWidth  
       TilesDown     = (ImageLength + TileLength - 1) / TileLength 
@@ -1016,6 +1014,7 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileOffsets    ,Offsets    )
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileByteCounts ,byteCounts )
       n_samples=tileWidth*tileLength  !samplesperTile
+
      CASE DEFAULT
       stop "TIFF type not a strip nor a tile!"
    END SELECT
@@ -1060,24 +1059,24 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
              if (tiff%swapByte) then
                  tmpInt_1=transfer( values_1(k+2:k:-1), tmpInt_1 )
              else                                                                    
-                 tmpInt_1= transfer( values_1(k:k+2:1), tmpInt_1 )
+                 tmpInt_1=transfer( values_1(k:k+2:1), tmpInt_1 )
              end if
              ! Check for unsigned integer SampleFormat; adjust for negative values if needed
-             if (tiff%SampleFormat == 1 .and. tmpInt_1 < 0 ) tmpint_1 = tmpint_1 + intAdj1
+             if ( tiff%SampleFormat == 1 .and. tmpInt_1 < 0 ) tmpint_1 = tmpint_1 + intAdj1
                                                                                              
-             IMG(e_i,e_j) =real(tmpInt_1)
+             IMG(e_i,e_j) = real(tmpInt_1)
 
           case(2)
           !2-byte data (commonly integers)
              if (tiff%swapByte) then
                  tmpInt_2=transfer( values_1(k+2:k:-1), tmpInt_2 )
              else                                                                    
-                 tmpInt_2= transfer( values_1(k:k+2:1), tmpInt_2 )
+                 tmpInt_2=transfer( values_1(k:k+2:1), tmpInt_2 )
              end if
              ! Check for unsigned integer SampleFormat; adjust for negative values if needed
              if (tiff%SampleFormat == 1 .and. tmpInt_2 < 0 ) tmpint_2 = tmpint_2 + intAdj2
 
-             IMG(e_i,e_j) =real(tmpInt_2)
+             IMG(e_i,e_j)=real(tmpInt_2)
 
           case(4)
           !4-byte data (it could be integer or float)
@@ -1086,16 +1085,16 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
                 if (tiff%swapByte) then
                     tmpFlt_4=transfer( values_1(k+4:k:-1), tmpFlt_4 )
                 else                                                                    
-                    tmpFlt_4= transfer( values_1(k:k+4:1), tmpFlt_4 )
+                    tmpFlt_4=transfer( values_1(k:k+4:1) , tmpFlt_4 )
                 end if
-                IMG(e_i,e_j) =real(tmpFlt_4)
+                IMG(e_i,e_j)=real(tmpFlt_4)
 
              else
              ! transfer to signed 4-byte integer
                 if (tiff%swapByte) then
                     tmpInt_4=transfer( values_1(k+4:k:-1), tmpInt_4 )
                 else                                                                    
-                    tmpInt_4= transfer( values_1(k:k+4:1), tmpInt_4 )
+                    tmpInt_4=transfer( values_1(k:k+4:1) , tmpInt_4 )
                 end if
 
                 ! Check for unsigned integer SampleFormat; adjust for negative values if needed
@@ -1109,12 +1108,12 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
              if (tiff%swapByte) then
                  tmpFlt_8=transfer( values_1(k+8:k:-1), tmpFlt_8 )
              else                                                                    
-                 tmpFlt_8= transfer( values_1(k:k+8:1), tmpFlt_8 )
+                 tmpFlt_8=transfer( values_1(k:k+8:1) , tmpFlt_8 )
              end if
-             IMG(e_i,e_j) =real(tmpFlt_8)
+             IMG(e_i,e_j)=real(tmpFlt_8)
          end select
       enddo
-      !values_1=0
+
    end do!offsets
 
 end subroutine TIFF_GET_IMAGE
@@ -1162,46 +1161,6 @@ end subroutine
 !=== END TIFF_GET_IMAGE_COORDINATES ==
 !=============================================================== 
 
-subroutine decode( values_1, method, lastindex )
-   implicit none
-   integer(1), allocatable, intent(inout) :: values_1(:)
-   integer, intent(in)       :: method, lastIndex
-   integer(1), allocatable   :: tmp(:)
-   integer(1)                :: num
-   integer :: i,j!,k,n
-
-   SELECT CASE( method ) 
-    CASE ( 1 )                                   !uncompressed
-      continue !do nothing
-    CASE ( 32773 )                               !PackBit (run-length method)
-      allocate(tmp(size(values_1)))
-      tmp=values_1                               !save compressed original copy
-      i=1  !index on tmp       (original copy)
-      j=1  !index on values_1  ( result)
-      do while ( i < lastIndex )
-         num = tmp(i)                            !pick new element of tmp
-         i=i+1 !next element
-         if ( num >= -127 .and. num < 0 ) then   !next -n+1 values are the same as values_1(k+1)
-            values_1(j:j-num+1)=tmp(i)
-            i=i+1
-            j=j-num+1
-         else if ( num >= 0 .and. num <= 127 ) then !the next n+1 values are copied literally
-            values_1(j:j+num)=tmp(i:i+num+1)
-            i=i+num+1
-            j=j+num+1
-         else 
-             cycle
-         end if
-      end do
-    CASE ( 2 )   !Modif. Hauffman (CCITT Group 3 1D facsimile compression scheme)
-         stop "Modif. Hauffman compression scheme not supported (yet)!"
-    CASE ( 5 )    !LZW method
-         stop "LZW compression scheme not supported (yet)!"
-    CASE DEFAULT
-       print*, "Compression scheme=",method; stop 'Compression method not recognized'
-   END SELECT
-end subroutine
-
 subroutine change_index_orientation(orientation,e_i,e_j,wid,len)
    implicit none
    integer, intent(inout) :: e_i,e_j
@@ -1237,6 +1196,94 @@ subroutine change_index_orientation(orientation,e_i,e_j,wid,len)
      case default
          stop "Orientation not a valid value"
    end select
+end subroutine
+
+!===============================================================
+!COMPRESSION  (DECODE FUNCTIONS)
+subroutine decode( values_1, method, lastindex )
+   implicit none
+   integer(1), allocatable, intent(inout) :: values_1(:)
+   integer                , intent(in)    :: method, lastIndex
+   integer(1), allocatable         :: tmp(:)
+   integer(1)                      :: num
+   integer :: i,j,rc!,k,n
+
+
+   SELECT CASE( method ) 
+    CASE ( 1 )                                       !uncompressed
+      continue !do nothing
+
+    CASE ( 32773 )                                   !PackBit (run-length method)
+      allocate(tmp(size(values_1)))
+      tmp=values_1                                   !save compressed original copy
+      i=1  !index on tmp       (original copy)
+      j=1  !index on values_1  ( result)
+      do while ( i < lastIndex )
+         num = tmp(i)                                !pick new element of tmp
+         i=i+1 !next element
+         if ( num >= -127 .and. num < 0 ) then       !next -n+1 values are the same as values_1(k+1)
+            values_1(j:j-num+1)=tmp(i)
+            i=i+1
+            j=j-num+1
+         else if ( num >= 0 .and. num <= 127 ) then  !the next n+1 values are copied literally
+            values_1(j:j+num)=tmp(i:i+num+1)
+            i=i+num+1
+            j=j+num+1
+         else 
+             cycle
+         end if
+      end do
+
+    CASE ( 2 )   !Modif. Hauffman (CCITT Group 3 1D facsimile compression scheme)
+     stop "Modif. Hauffman compression scheme for bilevel images not supported!"
+    CASE ( 3 )   !CCITT T.4
+      stop "CCITT T.4 bi-level encoding compression scheme not supported!"
+    CASE ( 4 )   !CCITT T.6
+      stop "CCITT T.6 bi-level encoding compression scheme not supported!"
+    CASE ( 5 )   !LZW method
+      stop "LZW compression scheme not supported (yet)!"
+    CASE ( 6 )   !JPEG obsolete
+      stop "JPEG obsolete lossy compresion not supported!"
+    CASE ( 7 )   !JPEG new  
+      stop "JPEG lossy compression not supported!"
+    CASE ( 8 )   !DEFLATE (LZ77 + Huffman)
+      !stop "DEFLATE compression scheme not supported (yet)!"
+      call zlib_DEFLATE(values_1, lastIndex)
+      
+    CASE DEFAULT
+       print*, "Compression scheme=",method; stop 'Compression method not recognized'
+   END SELECT
+end subroutine
+
+
+subroutine zlib_deflate(values_1, len_in)
+
+   implicit none
+   integer(1), intent(inout) :: values_1(:)
+   integer, intent(in)       :: len_in
+
+   !integer(1), allocatable   :: tmp_1(:)
+   integer(kind=z_ulong)         :: len_xx, len_ou
+   character(len=:), allocatable :: buff_xx,buff_ou
+   integer :: i,rc
+
+   len_xx = transfer([len_in],len_ou)
+   len_ou = size(values_1, kind=z_ulong)
+   allocate (character(len=len_xx):: buff_xx)
+   allocate (character(len=len_ou):: buff_ou)
+                                                      
+   do i=1,len_xx     
+     buff_xx(i:i) = transfer([values_1(i)], "a")
+   enddo
+                                                      
+   print*,"zlib: uncompressing...",len_xx,len_ou
+   rc = uncompress(buff_ou, len_ou, buff_xx, len_xx)
+   if (rc /= Z_OK) stop 'Error: uncompress() failed'
+
+   do i=1,len_ou     
+     values_1(i) = transfer([buff_ou(i:i)], 1_1)
+   end do
+
 end subroutine
 
 end module  

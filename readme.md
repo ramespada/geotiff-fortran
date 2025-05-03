@@ -1,8 +1,8 @@
 # geotiff-fortran
 
 [![Language](https://img.shields.io/badge/-Fortran-734f96?logo=fortran&logoColor=white)](https://github.com/topics/fortran)
-[![GitHub release](https://img.shields.io/github/release/CNEA-AQ/geotiff-fortran.svg)](https://github.com/CNEA-AQ/geotiff-fortran/releases/latest)
-[![last-commit](https://img.shields.io/github/last-commit/CNEA-AQ/geotiff-fortran)](https://github.com/CNEA-AQ/geotiff-fortran/commits/main)
+[![GitHub release](https://img.shields.io/github/release/ramespada/geotiff-fortran.svg)](https://github.com/ramespada/geotiff-fortran/releases/latest)
+[![last-commit](https://img.shields.io/github/last-commit/ramespada/geotiff-fortran)](https://github.com/ramespada/geotiff-fortran/commits/main)
 
 > Minimalistic Fortran GeoTIFF module, with sintax inspired on LIBTIFF C-Library.
 
@@ -74,7 +74,7 @@ TIFF 6.0 Baseline:
  + [x] Big-Enddian support (swap byte-order)
  + [x] Orientation: support for different orientation images (not all tested)
  + [x] Compression: Support for PackBits
- + [ ] Compression: Support for Modified Huffman (CCITT Group 3, 1-D)
+ + [ ] Compression: Support for Modified Huffman (CCITT Group 3, 1-D) (only for bilevel data)
  + [x] Multi-image TIFF (more than 1 IFD)
  + [ ] Multi-band TIFFs
  + [ ] Planar configuration TIFFs
@@ -83,6 +83,7 @@ TIFF 6.0 Baseline:
 TIFF 6.0 Extensions:
  + [x] Tiled images
  + [ ] Compression: LZW
+ + [x] Compression: DEFLATE (LZ77 + Huffman)
 
 [OGC GEOTIFF 1.1](https://docs.ogc.org/is/19-008r4/19-008r4.html)
  + [x] GeoKey values access

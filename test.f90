@@ -42,6 +42,7 @@ program test_tiff
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageLength, len)
 
       ![~] TIFF_GET_IMGAGE(tiff, img_id, img)
+      print*, "GET_IMAGE.."
       allocate(image(wid,len))
       call TIFF_GET_IMAGE(my_tiff, 1, image)
 
@@ -50,13 +51,15 @@ program test_tiff
       call GTIFF_GET_KEY_VALUE(my_tiff, GKEY_ProjectedCSType, crs) 
       print*, "CRS => EPSG:",crs
       
-      ![OK] GTIFF_get_Image_Coordinates(tiff,i,x,y )
-      allocate( x(wid,len))
-      allocate( y(wid,len))
-      call GTIFF_get_Image_Coordinates(my_tiff,x,y)
+      !![OK] GTIFF_get_Image_Coordinates(tiff,i,x,y )
+      !print*, "GET_IMAGE_COORDINATES.."
+      !allocate( x(wid,len))
+      !allocate( y(wid,len))
+      !call GTIFF_get_Image_Coordinates(my_tiff,x,y)
 
    call TIFF_Close(my_tiff)
 
+   !print*, image
    !DEBUG ======================
    print*,"Create NetCDF:"
    !Crear NetCDF
@@ -66,15 +69,15 @@ program test_tiff
       call check(nf90_def_dim(ncid, "y", len, y_dim_id ))
       !Creo variables:
       call check( nf90_def_var(ncid, 'image', NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
-      call check( nf90_def_var(ncid, 'lon'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
-      call check( nf90_def_var(ncid, 'lat'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
+      !call check( nf90_def_var(ncid, 'lon'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
+      !call check( nf90_def_var(ncid, 'lat'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
    call check(nf90_enddef(ncid))   !End NetCDF define mode
 
    !Abro NetCDF y guardo variables de salida
    call check(nf90_open('image.nc', nf90_write, ncid ))
       call check(nf90_inq_varid(ncid, 'image',var_id));call check(nf90_put_var(ncid, var_id,reshape(image,[wid,len]) )) 
-      call check(nf90_inq_varid(ncid, 'lon'  ,var_id));call check(nf90_put_var(ncid, var_id,x )) 
-      call check(nf90_inq_varid(ncid, 'lat'  ,var_id));call check(nf90_put_var(ncid, var_id,y )) 
+      !call check(nf90_inq_varid(ncid, 'lon'  ,var_id));call check(nf90_put_var(ncid, var_id,x )) 
+      !call check(nf90_inq_varid(ncid, 'lat'  ,var_id));call check(nf90_put_var(ncid, var_id,y )) 
    call check(nf90_close(ncid))
    !DEBUG =======================
 

@@ -1,13 +1,13 @@
 .SUFFIXES: .o .f90
 
 FC  =gfortran
-LIBS= -L/usr/lib/x86_64-linux-gnu -lnetcdf -lnetcdff -lm
+LIBS= -L/usr/lib/x86_64-linux-gnu -lnetcdf -lnetcdff -lm -lz
 INC = -I/usr/include
 DEBUG=-g -fbacktrace
 FCFLAGS=-O0 -ffree-line-length-none -Wall ${DEBUG}##-Wunused #
 LDFLAGS=
 
-OBJS=geotiff.o test.o
+OBJS=zlib.o geotiff.o test.o
 EXE =a.out
 
 $(EXE): $(OBJS)
