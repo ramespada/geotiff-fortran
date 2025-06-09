@@ -20,7 +20,7 @@ program test_tiff
   real, allocatable  :: x(:,:), y(:,:) 
   !Netcdf
   integer            :: ncid,x_dim_id,y_dim_id,var_id
-  character(len=256) :: file_path
+  character(len=256) :: file_path,projStr
   !integer :: i,j,k
  
   ! Check if the command line argument is provided
@@ -41,21 +41,21 @@ program test_tiff
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageWidth , wid)
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageLength, len)
 
+      !GeoTIFF procedures:
+      ![OK] GTIFF_get_Key_Value(tiff, key_id, value)
+      call gtiff_get_proj_str(my_tiff,1, projStr)
+      print*, "CRS => ",projStr
+      
+      !![OK] GTIFF_get_Image_Coordinates(tiff,i,x,y )
+      print*, "GET_IMAGE_COORDINATES.."
+      allocate( x(wid,len))
+      allocate( y(wid,len))
+      call GTIFF_get_Image_Coordinates(my_tiff,x,y)
+
       ![~] TIFF_GET_IMGAGE(tiff, img_id, img)
       print*, "GET_IMAGE.."
       allocate(image(wid,len))
       call TIFF_GET_IMAGE(my_tiff, 1, image)
-
-      !GeoTIFF procedures:
-      ![OK] GTIFF_get_Key_Value(tiff, key_id, value)
-      call GTIFF_GET_KEY_VALUE(my_tiff, GKEY_ProjectedCSType, crs) 
-      print*, "CRS => EPSG:",crs
-      
-      !![OK] GTIFF_get_Image_Coordinates(tiff,i,x,y )
-      !print*, "GET_IMAGE_COORDINATES.."
-      !allocate( x(wid,len))
-      !allocate( y(wid,len))
-      !call GTIFF_get_Image_Coordinates(my_tiff,x,y)
 
    call TIFF_Close(my_tiff)
 

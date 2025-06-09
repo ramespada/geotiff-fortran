@@ -72,22 +72,25 @@ General:
 
 TIFF 6.0 Baseline:
  + [x] Big-Enddian support (swap byte-order)
- + [x] Orientation: support for different orientation images (not all tested)
- + [x] Compression: Support for PackBits
- + [ ] Compression: Support for Modified Huffman (CCITT Group 3, 1-D) (only for bilevel data)
+ + [x] Orientation: different orientation images (not all tested)
+ + [x] Compression: PackBits
+ + [ ] Compression: Modified Huffman (CCITT Group 3,1-D) (only for bilevel data)
  + [x] Multi-image TIFF (more than 1 IFD)
- + [ ] Multi-band TIFFs
- + [ ] Planar configuration TIFFs
+ + [ ] Multiband TIFFs
+ + [ ] Planar configuration TIFFs 
  + [ ] Extend `TIFF_Get_Image` for categorical (integer) layers
 
 TIFF 6.0 Extensions:
  + [x] Tiled images
- + [ ] Compression: LZW
+ + [ ] Compression: **LZW**
  + [x] Compression: DEFLATE (LZ77 + Huffman)
+ + [ ] Differencing predictor algorithm
+ + [x] Data Sample Format
 
 [OGC GEOTIFF 1.1](https://docs.ogc.org/is/19-008r4/19-008r4.html)
  + [x] GeoKey values access
  + [x] Find how to get coordinates info
+ + [x] Get proj code (epsg or projstring)
 
 Performance:
 - [ ] Memory (RSS)

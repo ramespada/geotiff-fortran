@@ -24,7 +24,7 @@ module GTIFF
   integer :: TIFF_ImageWidth              = 256  !
   integer :: TIFF_ImageLength             = 257  !
   integer :: TIFF_BitsPerSample           = 258  ! 4,8,16
-  integer :: TIFF_Compression             = 259  ! 1=uncompressed; 2=CCITT; 32773=PackBits;
+  integer :: TIFF_Compression             = 259  ! !1=Uncompressed, 32773=PackBits, 2:Huffman, 5:LZW, 8:DEFLATE (zlib).
   integer :: TIFF_PhotometricInt          = 262  ! 0=whiteIs0; 1= blackIs0; 2=RGB; 3=palleteColor; 4=transparencyMask
   integer :: TIFF_Threshholding           = 263
   integer :: TIFF_CellWidth               = 264  !
@@ -73,43 +73,45 @@ module GTIFF
   integer :: GKey_GTRasterType            = 1025  ! 1=pixel is Area, 2=pixel is point, 0=undefined, 32767=user defined
   integer :: GKey_GTCitation              = 1026 
   ! Geodetic params:
-  integer :: GKey_GeodeticCRSGeoKey       = 2048 
-  integer :: GKey_GeographicType          = 2048 
-  integer :: GKey_GeogCitation            = 2049 
-  integer :: GKey_GeogGeodeticDatum       = 2050 
-  integer :: GKey_GeogPrimeMeridian       = 2051 
+  integer :: GKey_GeodeticCRSGeoKey       = 2048 !EPSG code of geographic CRS
+  integer :: GKey_GeographicType          = 2048 !
+  integer :: GKey_GeogCitation            = 2049 !
+  integer :: GKey_GeogGeodeticDatum       = 2050 !Datum code
+  integer :: GKey_GeogPrimeMeridian       = 2051 !
   integer :: GKey_GeogLinearUnits         = 2052 
   integer :: GKey_GeogLinearUnitSize      = 2053 
   integer :: GKey_GeogAngularUnits        = 2054 
-  integer :: GKey_GeogAngularUnitSize     = 2055 
-  integer :: GKey_GeogEllipsoid           = 2056 
-  integer :: GKey_GeogSemiMajorAxis       = 2057 
-  integer :: GKey_GeogSemiMinorAxis       = 2058 
-  integer :: GKey_GeogInvFlattening       = 2059 
+  integer :: GKey_GeogAngularUnitSize     = 2055  
+  integer :: GKey_GeogEllipsoid           = 2056  !Ellipsoid code (+ellps) 
+  integer :: GKey_Ellipsoid               = 2056  !+ellps=
+  integer :: GKey_GeogSemiMajorAxis       = 2057  !+a=      
+  integer :: GKey_GeogSemiMinorAxis       = 2058  !+b=
+  integer :: GKey_GeogInvFlattening       = 2059  !+rf=?  1/f. where f=a/(a-b)
   integer :: GKey_GeogAzimuthUnits        = 2060 
   integer :: GKey_GeogPrimeMeridianLong   = 2061 
   ! Projected params:
-  integer :: GKey_ProjectedCSType         = 3072  !EPSG! 0=undefined, 32767=user defined
+  integer :: GKey_ProjectedCSType         = 3072  !EPSG of projected CRS. 0=undefined, 32767=user defined
   integer :: GKey_PCSCitation             = 3073 
   integer :: GKey_Projection              = 3074 
-  integer :: GKey_ProjCoordTrans          = 3075 
-  integer :: GKey_ProjLinearUnits         = 3076 
-  integer :: GKey_ProjLinearUnitSize      = 3077 
-  integer :: GKey_ProjStdParallel1        = 3078 
-  integer :: GKey_ProjStdParallel2        = 3079 
-  integer :: GKey_ProjNatOriginLong       = 3080 
-  integer :: GKey_ProjNatOriginLat        = 3081 
-  integer :: GKey_ProjFalseEasting        = 3082 
-  integer :: GKey_ProjFalseNorthing       = 3083 
-  integer :: GKey_ProjFalseOriginLong     = 3084 
-  integer :: GKey_ProjFalseOriginLat      = 3085 
+  integer :: GKey_ProjCoordTrans          = 3075   !+proj=  (1:tmerc
+  integer :: GKey_ProjMethodGeoKey        = 3075   !+proj=  (1:tmerc
+  integer :: GKey_ProjLinearUnits         = 3076   
+  integer :: GKey_ProjLinearUnitSize      = 3077   
+  integer :: GKey_ProjStdParallel1        = 3078   !+lat_1= <float>? 
+  integer :: GKey_ProjStdParallel2        = 3079   !+lat_2= <float>?
+  integer :: GKey_ProjNatOriginLong       = 3080   !+lon_0= <float>?                                      
+  integer :: GKey_ProjNatOriginLat        = 3081   !+lat_0= <float>?
+  integer :: GKey_ProjFalseEasting        = 3082   !+x_0  = <float>?
+  integer :: GKey_ProjFalseNorthing       = 3083   !+y_0  = <float>? 
+  integer :: GKey_ProjFalseOriginLong     = 3084   
+  integer :: GKey_ProjFalseOriginLat      = 3085   
   integer :: GKey_ProjFalseOriginEasting  = 3086 
   integer :: GKey_ProjFalseOriginNorthing = 3087 
   integer :: GKey_ProjCenterLong          = 3088 
   integer :: GKey_ProjCenterLat           = 3089 
   integer :: GKey_ProjCenterEasting       = 3090 
   integer :: GKey_ProjCenterNorthing      = 3091 
-  integer :: GKey_ProjScaleAtNatOrigin    = 3092 
+  integer :: GKey_ProjScaleAtNatOrigin    = 3092   !+k=<float>?
   integer :: GKey_ProjScaleAtCenter       = 3093 
   integer :: GKey_ProjAzimuthAngle        = 3094 
   integer :: GKey_ProjStraightVertPoleLong= 3095 
@@ -659,9 +661,9 @@ subroutine get_key_values_double(tiff, keyId, values)
       call get_field_as_byte_array(tiff, tiff%gDir%offsetFloat+siz*off, values_1)
       do c=1,cnt
          if (tiff%swapByte) then
-             values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), float(1))
+             values(c)=transfer(values_1(c*siz:1+(c-1)*siz:-1), dble(1))
          else
-             values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), float(1))
+             values(c)=transfer(values_1(1+(c-1)*siz:c*siz   ), dble(1))
          end if
       enddo
       deallocate(values_1)
@@ -984,7 +986,7 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_BitsPerSample, bitsPerSample)
    
    if ( tiff%samplesPerPixel /= 1 ) stop "Multi-band images not supported yet."
-   if ( tiff%orientation     /= 1 ) stop "Only orientation=1 supported yet.   "
+   !if ( tiff%orientation     /= 1 ) stop "Only orientation=1 supported yet.   "
 
    bytesPerSample=bitsPerSample/8
 
@@ -1020,6 +1022,7 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    END SELECT
 
    allocate(values_1(n_samples*bytesPerSample))
+
    do i=1,size(Offsets)
       !read hole strip or tile (because each strip/tile is compressed separately)
       do b=1,byteCounts(i)
@@ -1160,6 +1163,157 @@ subroutine GTIFF_get_Image_Coordinates(tiff,x,y)
 end subroutine
 !=== END TIFF_GET_IMAGE_COORDINATES ==
 !=============================================================== 
+!=== GET PROJ STRING:
+subroutine addParamToProjString(tiff, img_num, projStr, GKEY, projParamStr)
+        implicit none
+        type(tiff_FILE), intent(in)    :: tiff
+        integer     ,intent(in)        :: img_num
+        character(len=*),intent(inout) :: projStr
+        integer     ,intent(in)        :: GKEY
+        character(len=*),intent(in)    :: projParamStr
+        real                           :: paramValue
+        character(len=16)              :: str16
+                                                                                              
+        if ( hasGkey(tiff,img_num,GKey) ) then
+           call GTIFF_GET_KEY_VALUE(tiff, GKEY, paramValue)
+           write(str16,'(f10.6)') paramValue
+           write(projStr,'(a," +",a,"=",a)') trim(projStr),trim(projParamStr), adjustl(str16)
+        end if
+end subroutine
+
+subroutine gtiff_get_proj_str(tiff,img_num, projstr)
+   implicit none
+   type(tiff_FILE), intent(in)    :: tiff
+   character(len=*),intent(inout) :: projStr
+   integer          :: crs       
+   !real             :: lat_0,lon_0,x_0,y_0,k,lat_1,lat_2,alpha,lonc
+   character(len=5)  :: ellps,datum,units
+   character(len=15) :: proj
+   integer :: img_num
+   integer :: i,j,ii,jj
+   integer :: proji
+
+   print*,"GTIFF: Get CRS parameters of the image.."
+
+   !The nice way:
+   if ( hasGKey(tiff,img_num,GKEY_ProjectedCSType) ) then
+      call GTIFF_GET_KEY_VALUE(tiff, GKEY_ProjectedCSType, crs)
+       write(proj,*),crs
+       projStr="EPSG:"//adjustl(proj)
+   else if ( hasGKey(tiff,img_num,GKey_GeographicType) ) then
+       call GTIFF_GET_KEY_VALUE(tiff, GKEY_GeographicType, crs)
+       write(proj,*),crs
+       projStr="EPSG:"//adjustl(proj)
+   else
+       stop 'Not CRS defined on this GTIFF file.'
+   end if
+  
+   !If latlon, make sure to keep the x,y order.
+   if ( crs == 4326  ) projStr="+proj=longlat +datum=WGS84 +axis=enu"
+   
+   !If user defined projection:
+   if ( crs == 32767 ) then !(user defined projection)
+      projStr = ""  ! Initialize empty string
+      
+      ! Get projection type
+      if ( hasGkey(tiff,img_num, GKey_ProjCoordTrans )) then
+         call GTIFF_GET_KEY_VALUE(tiff, GKey_ProjCoordTrans, proji)
+         select case(proji)
+            case(1)  ! Transverse Mercator
+               projStr = trim(projStr) // "+proj=tmerc"
+            case(2)  ! Transv Mercator (Modified Alaska)
+               projStr = trim(projStr) // "+proj=tmerc"
+            case(3)  ! Oblique Mercator
+               projStr = trim(projStr) // "+proj=omerc"
+            case(4)  ! Oblique Mercator (Laborde)
+               projStr = trim(projStr) // "+proj=labrd"
+            case(5)  ! Oblique Mercator (Rotated)
+               projStr = trim(projStr) // "+proj=omerc"
+            case(6)  ! Oblique Mercator (Hotine)
+               projStr = trim(projStr) // "+proj=omerc"
+            case(7)  ! Equirectangular
+               projStr = trim(projStr) // "+proj=eqc"
+            case(8)  ! Miller Cylindrical
+               projStr = trim(projStr) // "+proj=mill"
+            case(9)  ! Polar Stereographic
+               projStr = trim(projStr) // "+proj=stere"
+            case(10) ! Oblique Stereographic
+               projStr = trim(projStr) // "+proj=stere"
+            case(11) ! Equidistant Conic
+               projStr = trim(projStr) // "+proj=eqdc"
+            case(12) ! Transverse Cylindrical Equal Area
+               projStr = trim(projStr) // "+proj=tcea"
+            case(13) ! Cassini-Soldner
+               projStr = trim(projStr) // "+proj=cass"
+            case(14) ! Lambert Conformal Conic (2SP)
+               projStr = trim(projStr) // "+proj=lcc"
+            case(15) ! Albers Equal Area Conic
+               projStr = trim(projStr) // "+proj=aea"
+            case(16) ! Azimuthal Equidistant
+               projStr = trim(projStr) // "+proj=aeqd"
+            case(17) ! Gnomonic
+               projStr = trim(projStr) // "+proj=gnom"
+            case(18) ! Lambert Azimuthal Equal Area
+               projStr = trim(projStr) // "+proj=laea"
+            case(19) ! Orthographic
+               projStr = trim(projStr) // "+proj=ortho"
+            case(20) ! General Vertical Near-Side Perspective
+               projStr = trim(projStr) // "+proj=nsper"
+            case(21) ! Sinusoidal
+               projStr = trim(projStr) // "+proj=sinu"
+            case(22) ! Equirectangular (Spherical)
+               projStr = trim(projStr) // "+proj=eqcs"
+            case(23) ! Mollweide
+               projStr = trim(projStr) // "+proj=moll"
+            case(24) ! Eckert IV
+               projStr = trim(projStr) // "+proj=eck4"
+            case(25) ! Eckert VI
+               projStr = trim(projStr) // "+proj=eck6"
+            case(26) ! New Zealand Map Grid
+               projStr = trim(projStr) // "+proj=nzmg"
+            case(27) ! Transverse Mercator (South Oriented)
+               projStr = trim(projStr) // "+proj=tmerc"
+         end select
+      end if
+
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjStdParallel1,        "lat_1" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjStdParallel2,        "lat_2" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjNatOriginLong,       "lon_0" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjNatOriginLat,        "lat_0" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjFalseEasting,        "x_0"   )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjFalseNorthing,       "y_0"   )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjCenterLong,          "lon_0" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjCenterLat,           "lat_0" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjScaleAtNatOrigin,    "k"     )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjAzimuthAngle,        "alpha" )
+      call addParamToProjString(tiff,img_num,projStr, GKey_ProjStraightVertPoleLong,"lonc"  )
+
+      ! Get ellipsoid
+      if ( hasGkey(tiff,img_num,GKey_GeogEllipsoid) ) then
+         call GTIFF_GET_KEY_VALUE(tiff, GKey_GeogEllipsoid, ellps)
+         write(projStr,'(a," +ellps=",a)') trim(projStr), adjustl(ellps)
+      end if
+
+      ! Get units
+      if ( hasGkey(tiff,img_num,GKey_ProjLinearUnits) ) then
+         call GTIFF_GET_KEY_VALUE(tiff, GKey_ProjLinearUnits, units)
+         select case(trim(units))
+            case("9001") ! meters
+               write(projStr,'(a," +units=m")') trim(projStr)
+            case("9002") ! feet
+               write(projStr,'(a," +units=ft")') trim(projStr)
+            case("9003") ! US feet
+               write(projStr,'(a," +units=us-ft")') trim(projStr)
+         end select
+      end if
+
+   end if
+
+   print*,"PROJ: ",projStr
+
+end subroutine
+!END GET PROJ STRING
+!=============================================================== 
 
 subroutine change_index_orientation(orientation,e_i,e_j,wid,len)
    implicit none
@@ -1247,9 +1401,8 @@ subroutine decode( values_1, method, lastindex )
     CASE ( 7 )   !JPEG new  
       stop "JPEG lossy compression not supported!"
     CASE ( 8 )   !DEFLATE (LZ77 + Huffman)
-      !stop "DEFLATE compression scheme not supported (yet)!"
-      call zlib_DEFLATE(values_1, lastIndex)
-      
+      call ZLIB_DEFLATE(values_1, lastIndex)
+
     CASE DEFAULT
        print*, "Compression scheme=",method; stop 'Compression method not recognized'
    END SELECT
@@ -1257,7 +1410,6 @@ end subroutine
 
 
 subroutine zlib_deflate(values_1, len_in)
-
    implicit none
    integer(1), intent(inout) :: values_1(:)
    integer, intent(in)       :: len_in
@@ -1276,7 +1428,7 @@ subroutine zlib_deflate(values_1, len_in)
      buff_xx(i:i) = transfer([values_1(i)], "a")
    enddo
                                                       
-   print*,"zlib: uncompressing...",len_xx,len_ou
+   print*,"ZLIB: uncompressing...",len_xx,"-->",len_ou
    rc = uncompress(buff_ou, len_ou, buff_xx, len_xx)
    if (rc /= Z_OK) stop 'Error: uncompress() failed'
 
