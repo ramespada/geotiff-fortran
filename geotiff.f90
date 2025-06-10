@@ -5,6 +5,7 @@ module GTIFF
 ! date:           May, 2024.
 !
   use zlib
+  use omp_lib
 
   implicit none
   !save
@@ -73,11 +74,11 @@ module GTIFF
   integer :: GKey_GTRasterType            = 1025  ! 1=pixel is Area, 2=pixel is point, 0=undefined, 32767=user defined
   integer :: GKey_GTCitation              = 1026 
   ! Geodetic params:
-  integer :: GKey_GeodeticCRSGeoKey       = 2048 !EPSG code of geographic CRS
-  integer :: GKey_GeographicType          = 2048 !
-  integer :: GKey_GeogCitation            = 2049 !
-  integer :: GKey_GeogGeodeticDatum       = 2050 !Datum code
-  integer :: GKey_GeogPrimeMeridian       = 2051 !
+  integer :: GKey_GeodeticCRSGeoKey       = 2048  !EPSG code of geographic CRS
+  integer :: GKey_GeographicType          = 2048  !
+  integer :: GKey_GeogCitation            = 2049  !
+  integer :: GKey_GeogGeodeticDatum       = 2050  !Datum code
+  integer :: GKey_GeogPrimeMeridian       = 2051  !
   integer :: GKey_GeogLinearUnits         = 2052 
   integer :: GKey_GeogLinearUnitSize      = 2053 
   integer :: GKey_GeogAngularUnits        = 2054 
@@ -93,36 +94,36 @@ module GTIFF
   integer :: GKey_ProjectedCSType         = 3072  !EPSG of projected CRS. 0=undefined, 32767=user defined
   integer :: GKey_PCSCitation             = 3073 
   integer :: GKey_Projection              = 3074 
-  integer :: GKey_ProjCoordTrans          = 3075   !+proj=  (1:tmerc
-  integer :: GKey_ProjMethodGeoKey        = 3075   !+proj=  (1:tmerc
+  integer :: GKey_ProjCoordTrans          = 3075  !+proj=
+  integer :: GKey_ProjMethodGeoKey        = 3075  !+proj=
   integer :: GKey_ProjLinearUnits         = 3076   
   integer :: GKey_ProjLinearUnitSize      = 3077   
-  integer :: GKey_ProjStdParallel1        = 3078   !+lat_1= <float>? 
-  integer :: GKey_ProjStdParallel2        = 3079   !+lat_2= <float>?
-  integer :: GKey_ProjNatOriginLong       = 3080   !+lon_0= <float>?                                      
-  integer :: GKey_ProjNatOriginLat        = 3081   !+lat_0= <float>?
-  integer :: GKey_ProjFalseEasting        = 3082   !+x_0  = <float>?
-  integer :: GKey_ProjFalseNorthing       = 3083   !+y_0  = <float>? 
+  integer :: GKey_ProjStdParallel1        = 3078  !+lat_1= <double>
+  integer :: GKey_ProjStdParallel2        = 3079  !+lat_2= <double>
+  integer :: GKey_ProjNatOriginLong       = 3080  !+lon_0= <double>                                     
+  integer :: GKey_ProjNatOriginLat        = 3081  !+lat_0= <double>
+  integer :: GKey_ProjFalseEasting        = 3082  !+x_0  = <double>
+  integer :: GKey_ProjFalseNorthing       = 3083  !+y_0  = <double>
   integer :: GKey_ProjFalseOriginLong     = 3084   
   integer :: GKey_ProjFalseOriginLat      = 3085   
-  integer :: GKey_ProjFalseOriginEasting  = 3086 
-  integer :: GKey_ProjFalseOriginNorthing = 3087 
-  integer :: GKey_ProjCenterLong          = 3088 
-  integer :: GKey_ProjCenterLat           = 3089 
-  integer :: GKey_ProjCenterEasting       = 3090 
-  integer :: GKey_ProjCenterNorthing      = 3091 
-  integer :: GKey_ProjScaleAtNatOrigin    = 3092   !+k=<float>?
-  integer :: GKey_ProjScaleAtCenter       = 3093 
-  integer :: GKey_ProjAzimuthAngle        = 3094 
-  integer :: GKey_ProjStraightVertPoleLong= 3095 
+  integer :: GKey_ProjFalseOriginEasting  = 3086   
+  integer :: GKey_ProjFalseOriginNorthing = 3087  
+  integer :: GKey_ProjCenterLong          = 3088  
+  integer :: GKey_ProjCenterLat           = 3089  
+  integer :: GKey_ProjCenterEasting       = 3090  
+  integer :: GKey_ProjCenterNorthing      = 3091  
+  integer :: GKey_ProjScaleAtNatOrigin    = 3092  !+k=<double>
+  integer :: GKey_ProjScaleAtCenter       = 3093  
+  integer :: GKey_ProjAzimuthAngle        = 3094  
+  integer :: GKey_ProjStraightVertPoleLong= 3095  
   ! Vertical params:
-  integer :: GKey_VerticalCSType          = 4096 
-  integer :: GKey_VerticalCitation        = 4097 
-  integer :: GKey_VerticalDatum           = 4096 
-  integer :: GKey_VerticalUnits           = 4099 
+  integer :: GKey_VerticalCSType          = 4096  
+  integer :: GKey_VerticalCitation        = 4097  
+  integer :: GKey_VerticalDatum           = 4096  
+  integer :: GKey_VerticalUnits           = 4099  
   !GDAL Tags:
-  integer :: GDAL_METADATA  =42112 
-  integer :: GDAL_NODATA    =42113 
+  integer :: GDAL_METADATA  =42112                 
+  integer :: GDAL_NODATA    =42113                   
 
   interface TIFF_GET_TAG_VALUE
      module procedure get_tag_value_int, get_tag_values_int, get_tag_value_float, get_tag_values_float,get_tag_value_double, get_tag_values_double, get_tag_values_char
@@ -212,7 +213,7 @@ subroutine TIFF_Open(iUnit,inpFile,action,tiff,iost)
      case ('r','R','read','READ','Read')
         print'("Opening tiff file: ",A20)',inpFile
         open(unit=tiff%iUnit, file=trim(tiff%path), form='UNFORMATTED', &
-             action='READ',status='OLD',access='DIRECT', recl=1,iostat=iost)
+             action='READ',status='OLD',access='DIRECT', recl=1, iostat=iost)
 
         ![OK] Read Header
         call TIFF_READ_HEADER(tiff)  
@@ -962,23 +963,28 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    integer        , intent(in)   :: img_num
    real           , intent(inout):: IMG(:,:)  !extend to integer and double precission
    !global
-   integer              :: imageWidth, imageLength, bytesPerSample, bitsPerSample!, samplesPerPixel,orientation
+   integer              :: imageWidth, imageLength, bytesPerSample, bitsPerSample
    integer, allocatable :: OffSets(:), byteCounts(:)
-   integer              :: n_samples=1 ! (samplesPerStrip or samplesPerTile)
+   integer              :: n_samples=1
    !if strips:
-   integer              :: rowsPerStrip,stripsPerImage!,samplesPerStrip
+   integer              :: rowsPerStrip,stripsPerImage
    !if tiles:
-   integer              :: tileWidth,tileLength,tilesAcross,tilesDown,tilesPerImage!,samplesPerTile
-   integer              :: e_i,e_j,e_ii,e_jj !test
+   integer              :: tileWidth,tileLength,tilesAcross,tilesDown,tilesPerImage
+   integer              :: e_i,e_j,e_ii,e_jj
    !
-   integer :: i,j,k,b!,e!,recNum
+   integer :: i,j,k,b
    integer(kind=1), allocatable :: values_1(:)  !array of bytes of hole strip/tile
    !temporal vars:
-   real   (kind=8) :: tmpFlt_8 ! double precission floating point (8-bytes)
-   real   (kind=4) :: tmpFlt_4 ! single precission floating point (4-bytes)
-   integer(kind=4) :: tmpInt_4 ! 
-   integer(kind=2) :: tmpInt_2 !
-   integer(kind=1) :: tmpInt_1 !
+   real   (kind=8) :: tmpFlt_8
+   real   (kind=4) :: tmpFlt_4
+   integer(kind=4) :: tmpInt_4
+   integer(kind=2) :: tmpInt_2
+   integer(kind=1) :: tmpInt_1
+   ! For bulk reading
+   integer(kind=1), allocatable :: buffer(:)
+   integer :: max_byte_count
+   ! Temporary array for orientation
+   real, allocatable :: temp_IMG(:,:)
 
    !get Image parameters:
    call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_ImageWidth   , imageWidth   )
@@ -986,7 +992,6 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
    call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_BitsPerSample, bitsPerSample)
    
    if ( tiff%samplesPerPixel /= 1 ) stop "Multi-band images not supported yet."
-   !if ( tiff%orientation     /= 1 ) stop "Only orientation=1 supported yet.   "
 
    bytesPerSample=bitsPerSample/8
 
@@ -1001,7 +1006,7 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_StripOffsets   ,Offsets   )
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_StripByteCounts,byteCounts)
 
-      n_samples=rowsPerStrip*imageWidth !samplesPerStrip
+      n_samples=rowsPerStrip*imageWidth
 
     CASE ("tile")
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileWidth      ,tileWidth )
@@ -1015,110 +1020,147 @@ subroutine TIFF_GET_IMAGE(tiff,img_num,IMG)
       allocate(byteCounts(tilesPerImage))
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileOffsets    ,Offsets    )
       call TIFF_GET_TAG_VALUE(tiff, img_num, TIFF_TileByteCounts ,byteCounts )
-      n_samples=tileWidth*tileLength  !samplesperTile
+      n_samples=tileWidth*tileLength
 
      CASE DEFAULT
       stop "TIFF type not a strip nor a tile!"
    END SELECT
 
+   ! Allocate buffer for bulk reading
+   max_byte_count = maxval(byteCounts)
+   allocate(buffer(max_byte_count))
    allocate(values_1(n_samples*bytesPerSample))
+   allocate(temp_IMG(imageWidth, imageLength))
 
    do i=1,size(Offsets)
-      !read hole strip or tile (because each strip/tile is compressed separately)
+      ! Bulk read the entire strip/tile
       do b=1,byteCounts(i)
          read(tiff%iUnit, rec=Offsets(i)+b) values_1(b)
-      end do
-      
-      !uncompress secuence of bytes in strip/tile.
-      call decode(values_1,tiff%compression,byteCounts(i)) !decode strip/tile if compression is applied
-
-      !transfer data to IMG array:
-      do j=1,size(values_1)/bytesPerSample
-         k=(j-1)*bytesPerSample+1
-
-         !indexing (strip vs tile)
-         if ( trim(tiff%imgType) == 'strip' ) then
-            e_i=mod((j-1),imageWidth) + 1                 !revisar!
-            e_j=(i-1)*rowsPerStrip + (j-1)/imageWidth + 1 !revisar!
-
-         else if ( trim(tiff%imgType) == 'tile'  ) then 
-            e_ii= mod(j-1 ,tileWidth)+1                   !revisar!
-            e_jj=    (j-1)/tileWidth +1                   !revisar!
-            e_i = mod(i-1 ,tilesAcross)*tileWidth  + e_ii !revisar!
-            e_j =    (i-1)/tilesAcross *tileLength + e_jj !revisar!
-            !e_j = mod((i-1)/tilesAcross, tilesDown)*tileLength + e_jj !revisar!
-         endif
-         !do not copy paddings:
-         if ( e_i > imageWidth .or. e_j > imageLength) then
-            cycle
-         endif
-         
-         !change indices values based on orientation    
-         call change_index_orientation(tiff%orientation,e_i,e_j,imageWidth,imageLength)
-
-         select case(bytesPerSample)
-          case(1)
-          !1-byte data
-             if (tiff%swapByte) then
-                 tmpInt_1=transfer( values_1(k+2:k:-1), tmpInt_1 )
-             else                                                                    
-                 tmpInt_1=transfer( values_1(k:k+2:1), tmpInt_1 )
-             end if
-             ! Check for unsigned integer SampleFormat; adjust for negative values if needed
-             if ( tiff%SampleFormat == 1 .and. tmpInt_1 < 0 ) tmpint_1 = tmpint_1 + intAdj1
-                                                                                             
-             IMG(e_i,e_j) = real(tmpInt_1)
-
-          case(2)
-          !2-byte data (commonly integers)
-             if (tiff%swapByte) then
-                 tmpInt_2=transfer( values_1(k+2:k:-1), tmpInt_2 )
-             else                                                                    
-                 tmpInt_2=transfer( values_1(k:k+2:1), tmpInt_2 )
-             end if
-             ! Check for unsigned integer SampleFormat; adjust for negative values if needed
-             if (tiff%SampleFormat == 1 .and. tmpInt_2 < 0 ) tmpint_2 = tmpint_2 + intAdj2
-
-             IMG(e_i,e_j)=real(tmpInt_2)
-
-          case(4)
-          !4-byte data (it could be integer or float)
-             if (tiff%SampleFormat == 3 ) then
-             ! transfer to 4-byte floating point (real)
-                if (tiff%swapByte) then
-                    tmpFlt_4=transfer( values_1(k+4:k:-1), tmpFlt_4 )
-                else                                                                    
-                    tmpFlt_4=transfer( values_1(k:k+4:1) , tmpFlt_4 )
-                end if
-                IMG(e_i,e_j)=real(tmpFlt_4)
-
-             else
-             ! transfer to signed 4-byte integer
-                if (tiff%swapByte) then
-                    tmpInt_4=transfer( values_1(k+4:k:-1), tmpInt_4 )
-                else                                                                    
-                    tmpInt_4=transfer( values_1(k:k+4:1) , tmpInt_4 )
-                end if
-
-                ! Check for unsigned integer SampleFormat; adjust for negative values if needed
-                if (tiff%SampleFormat == 1 .and. tmpInt_4 < 0 ) tmpint_4 = tmpint_4 + intAdj4
-
-                IMG(e_i,e_j) =real(tmpInt_4)
-
-             end if
-          case(8)
-          !8-byte data (normally floating point double precission)
-             if (tiff%swapByte) then
-                 tmpFlt_8=transfer( values_1(k+8:k:-1), tmpFlt_8 )
-             else                                                                    
-                 tmpFlt_8=transfer( values_1(k:k+8:1) , tmpFlt_8 )
-             end if
-             IMG(e_i,e_j)=real(tmpFlt_8)
-         end select
       enddo
 
-   end do!offsets
+      ! Uncompress if needed
+      call decode(values_1, tiff%compression, byteCounts(i))
 
+      ! Process data in chunks for better cache utilization
+      if ( trim(tiff%imgType) == 'strip' ) then
+         do j=1,size(values_1)/bytesPerSample
+            k=(j-1)*bytesPerSample+1
+            e_i=mod((j-1),imageWidth) + 1
+            e_j=(i-1)*rowsPerStrip + (j-1)/imageWidth + 1
+            
+            if ( e_i > imageWidth .or. e_j > imageLength) cycle
+            
+            select case(bytesPerSample)
+            case(1)
+               if (tiff%swapByte) then
+                  tmpInt_1=transfer( values_1(k+2:k:-1), tmpInt_1 )
+               else
+                  tmpInt_1=transfer( values_1(k:k+2:1), tmpInt_1 )
+               end if
+               if ( tiff%SampleFormat == 1 .and. tmpInt_1 < 0 ) tmpint_1 = tmpint_1 + intAdj1
+               temp_IMG(e_i,e_j) = real(tmpInt_1)
+            case(2)
+               if (tiff%swapByte) then
+                  tmpInt_2=transfer( values_1(k+2:k:-1), tmpInt_2 )
+               else
+                  tmpInt_2=transfer( values_1(k:k+2:1), tmpInt_2 )
+               end if
+               if (tiff%SampleFormat == 1 .and. tmpInt_2 < 0 ) tmpint_2 = tmpint_2 + intAdj2
+               temp_IMG(e_i,e_j)=real(tmpInt_2)
+            case(4)
+               if (tiff%SampleFormat == 3 ) then
+                  if (tiff%swapByte) then
+                     tmpFlt_4=transfer( values_1(k+4:k:-1), tmpFlt_4 )
+                  else
+                     tmpFlt_4=transfer( values_1(k:k+4:1) , tmpFlt_4 )
+                  end if
+                  temp_IMG(e_i,e_j)=real(tmpFlt_4)
+               else
+                  if (tiff%swapByte) then
+                     tmpInt_4=transfer( values_1(k+4:k:-1), tmpInt_4 )
+                  else
+                     tmpInt_4=transfer( values_1(k:k+4:1) , tmpInt_4 )
+                  end if
+                  if (tiff%SampleFormat == 1 .and. tmpInt_4 < 0 ) tmpint_4 = tmpint_4 + intAdj4
+                  temp_IMG(e_i,e_j) =real(tmpInt_4)
+               end if
+            case(8)
+               if (tiff%swapByte) then
+                  tmpFlt_8=transfer( values_1(k+8:k:-1), tmpFlt_8 )
+               else
+                  tmpFlt_8=transfer( values_1(k:k+8:1) , tmpFlt_8 )
+               end if
+               temp_IMG(e_i,e_j)=real(tmpFlt_8)
+            end select
+         enddo
+      else if ( trim(tiff%imgType) == 'tile'  ) then
+         do j=1,size(values_1)/bytesPerSample
+            k=(j-1)*bytesPerSample+1
+            e_ii= mod(j-1 ,tileWidth)+1
+            e_jj=    (j-1)/tileWidth +1
+            e_i = mod(i-1 ,tilesAcross)*tileWidth  + e_ii
+            e_j =    (i-1)/tilesAcross *tileLength + e_jj
+            
+            if ( e_i > imageWidth .or. e_j > imageLength) cycle
+            
+            select case(bytesPerSample)
+            case(1)
+               if (tiff%swapByte) then
+                  tmpInt_1=transfer( values_1(k+2:k:-1), tmpInt_1 )
+               else
+                  tmpInt_1=transfer( values_1(k:k+2:1), tmpInt_1 )
+               end if
+               if ( tiff%SampleFormat == 1 .and. tmpInt_1 < 0 ) tmpint_1 = tmpint_1 + intAdj1
+               temp_IMG(e_i,e_j) = real(tmpInt_1)
+            case(2)
+               if (tiff%swapByte) then
+                  tmpInt_2=transfer( values_1(k+2:k:-1), tmpInt_2 )
+               else
+                  tmpInt_2=transfer( values_1(k:k+2:1), tmpInt_2 )
+               end if
+               if (tiff%SampleFormat == 1 .and. tmpInt_2 < 0 ) tmpint_2 = tmpint_2 + intAdj2
+               temp_IMG(e_i,e_j)=real(tmpInt_2)
+            case(4)
+               if (tiff%SampleFormat == 3 ) then
+                  if (tiff%swapByte) then
+                     tmpFlt_4=transfer( values_1(k+4:k:-1), tmpFlt_4 )
+                  else
+                     tmpFlt_4=transfer( values_1(k:k+4:1) , tmpFlt_4 )
+                  end if
+                  temp_IMG(e_i,e_j)=real(tmpFlt_4)
+               else
+                  if (tiff%swapByte) then
+                     tmpInt_4=transfer( values_1(k+4:k:-1), tmpInt_4 )
+                  else
+                     tmpInt_4=transfer( values_1(k:k+4:1) , tmpInt_4 )
+                  end if
+                  if (tiff%SampleFormat == 1 .and. tmpInt_4 < 0 ) tmpint_4 = tmpint_4 + intAdj4
+                  temp_IMG(e_i,e_j) =real(tmpInt_4)
+               end if
+            case(8)
+               if (tiff%swapByte) then
+                  tmpFlt_8=transfer( values_1(k+8:k:-1), tmpFlt_8 )
+               else
+                  tmpFlt_8=transfer( values_1(k:k+8:1) , tmpFlt_8 )
+               end if
+               temp_IMG(e_i,e_j)=real(tmpFlt_8)
+            end select
+         enddo
+      endif
+   enddo
+
+   ! Apply orientation to the entire image at once
+   !do j=1,imageLength
+   !do i=1,imageWidth
+   do concurrent(i = 1:imageWidth, j = 1:imageLength)
+         e_i = i
+         e_j = j
+         call change_index_orientation(tiff%orientation,e_i,e_j,imageWidth,imageLength)
+         IMG(e_i,e_j) = temp_IMG(i,j)
+   !end do
+   enddo
+
+   deallocate(values_1, buffer, temp_IMG)
 end subroutine TIFF_GET_IMAGE
 !=== END TIFF_GET_IMAGE =============
 
@@ -1131,35 +1173,54 @@ subroutine GTIFF_get_Image_Coordinates(tiff,x,y)
    integer          :: i0,j0     
    real             :: x0,y0,dx,dy
    integer :: i,j,ii,jj
+   real, allocatable :: temp_X(:,:), temp_Y(:,:)
+   integer :: wid,len
+   
+   wid=tiff%nx
+   len=tiff%ny
+
+   allocate(temp_X(wid,len))
+   allocate(temp_Y(wid,len))
 
    if ( hasTag(tiff,1, GTIFF_ModelTransformationTag) ) then
       M=sngl(reshape(tiff%trans,[4,4]))
+      do j=1,tiff%ny
       do i=1,tiff%nx
-        do j=1,tiff%ny
            ii=i;jj=j
-           call change_index_orientation(tiff%orientation,ii,jj,tiff%nx,tiff%ny)
-           x(ii,jj)=dot_product(M(:,1),[i,j,0,0])
-           y(ii,jj)=dot_product(M(:,2),[i,j,0,0])
-        enddo
+           temp_x(ii,jj)=dot_product(M(:,1),[i,j,0,0])
+           temp_y(ii,jj)=dot_product(M(:,2),[i,j,0,0])
+      enddo
       enddo
    else
       i0= int(tiff%tiePt(1)); j0= int(tiff%tiePt(2))
       x0=real(tiff%tiePt(4)); y0=real(tiff%tiePt(5))
       dx=real(tiff%scale(1)); dy=real(tiff%scale(2))
+      do j=1,tiff%ny
       do i=1,tiff%nx
-        do j=1,tiff%ny
            ii=i;jj=j
-           call change_index_orientation(tiff%orientation,ii,jj,tiff%nx,tiff%ny)
-           x(ii,jj)=x0 + dx*((i-1) - i0)
-           y(ii,jj)=y0 - dy*((j-1) - j0)
-        enddo
+           temp_x(ii,jj)=x0 + dx*((i-1) - i0)
+           temp_y(ii,jj)=y0 - dy*((j-1) - j0)
+      enddo
       enddo
       !Debug:
-      print '("Dimensions X:",I3," Y:",I3)',tiff%nx,tiff%ny
-      print '("Origin      :",F12.3,",",F12.3)',x0,y0
-      print '("Pixel size  :",F6.2,",",F6.2)',dx,dy
+      print '("Dimensions X:",I6," Y:",I6)',tiff%nx,tiff%ny
+      print '("Origin      :",F16.3,",",F16.3)',x0,y0
+      print '("Pixel size  :",F16.6,",",F16.6)',dx,dy
       print '("Extent      :",F16.3,",",F16.3,",",F16.3,",",F16.3)',minval(x),minval(y),maxval(x),maxval(y)
    endif
+
+   ! Apply orientation to the entire image at once
+   do concurrent(i = 1:wid, j = 1:len)
+   !do j=1,wid
+   !do i=1,len
+         ii = i
+         jj = j
+         call change_index_orientation(tiff%orientation,ii,jj,tiff%nx,tiff%ny)
+         x(ii,jj) = temp_x(i,j)
+         y(ii,jj) = temp_y(i,j)
+   !enddo
+   enddo
+
 end subroutine
 !=== END TIFF_GET_IMAGE_COORDINATES ==
 !=============================================================== 
@@ -1198,11 +1259,11 @@ subroutine gtiff_get_proj_str(tiff,img_num, projstr)
    !The nice way:
    if ( hasGKey(tiff,img_num,GKEY_ProjectedCSType) ) then
       call GTIFF_GET_KEY_VALUE(tiff, GKEY_ProjectedCSType, crs)
-       write(proj,*),crs
+       write(proj,*) crs
        projStr="EPSG:"//adjustl(proj)
    else if ( hasGKey(tiff,img_num,GKey_GeographicType) ) then
        call GTIFF_GET_KEY_VALUE(tiff, GKEY_GeographicType, crs)
-       write(proj,*),crs
+       write(proj,*) crs
        projStr="EPSG:"//adjustl(proj)
    else
        stop 'Not CRS defined on this GTIFF file.'
@@ -1276,17 +1337,17 @@ subroutine gtiff_get_proj_str(tiff,img_num, projstr)
          end select
       end if
 
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjStdParallel1,        "lat_1" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjStdParallel2,        "lat_2" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjNatOriginLong,       "lon_0" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjNatOriginLat,        "lat_0" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjFalseEasting,        "x_0"   )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjFalseNorthing,       "y_0"   )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjCenterLong,          "lon_0" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjCenterLat,           "lat_0" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjScaleAtNatOrigin,    "k"     )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjAzimuthAngle,        "alpha" )
-      call addParamToProjString(tiff,img_num,projStr, GKey_ProjStraightVertPoleLong,"lonc"  )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjStdParallel1,        "lat_1" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjStdParallel2,        "lat_2" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjNatOriginLong,       "lon_0" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjNatOriginLat,        "lat_0" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjFalseEasting,        "x_0"   )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjFalseNorthing,       "y_0"   )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjCenterLong,          "lon_0" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjCenterLat,           "lat_0" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjScaleAtNatOrigin,    "k"     )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjAzimuthAngle,        "alpha" )
+      call addParamToProjString(tiff,img_num, projStr, GKey_ProjStraightVertPoleLong,"lonc"  )
 
       ! Get ellipsoid
       if ( hasGkey(tiff,img_num,GKey_GeogEllipsoid) ) then
@@ -1315,7 +1376,7 @@ end subroutine
 !END GET PROJ STRING
 !=============================================================== 
 
-subroutine change_index_orientation(orientation,e_i,e_j,wid,len)
+pure subroutine change_index_orientation(orientation,e_i,e_j,wid,len)
    implicit none
    integer, intent(inout) :: e_i,e_j
    integer, intent(in)    :: wid,len,orientation
@@ -1348,7 +1409,7 @@ subroutine change_index_orientation(orientation,e_i,e_j,wid,len)
          e_i=e_j
          e_j=tmp
      case default
-         stop "Orientation not a valid value"
+         !stop "Orientation not a valid value"
    end select
 end subroutine
 
@@ -1358,35 +1419,13 @@ subroutine decode( values_1, method, lastindex )
    implicit none
    integer(1), allocatable, intent(inout) :: values_1(:)
    integer                , intent(in)    :: method, lastIndex
-   integer(1), allocatable         :: tmp(:)
-   integer(1)                      :: num
-   integer :: i,j,rc!,k,n
-
 
    SELECT CASE( method ) 
     CASE ( 1 )                                       !uncompressed
       continue !do nothing
 
     CASE ( 32773 )                                   !PackBit (run-length method)
-      allocate(tmp(size(values_1)))
-      tmp=values_1                                   !save compressed original copy
-      i=1  !index on tmp       (original copy)
-      j=1  !index on values_1  ( result)
-      do while ( i < lastIndex )
-         num = tmp(i)                                !pick new element of tmp
-         i=i+1 !next element
-         if ( num >= -127 .and. num < 0 ) then       !next -n+1 values are the same as values_1(k+1)
-            values_1(j:j-num+1)=tmp(i)
-            i=i+1
-            j=j-num+1
-         else if ( num >= 0 .and. num <= 127 ) then  !the next n+1 values are copied literally
-            values_1(j:j+num)=tmp(i:i+num+1)
-            i=i+num+1
-            j=j+num+1
-         else 
-             cycle
-         end if
-      end do
+      call packbit(values_1,lastIndex)
 
     CASE ( 2 )   !Modif. Hauffman (CCITT Group 3 1D facsimile compression scheme)
      stop "Modif. Hauffman compression scheme for bilevel images not supported!"
@@ -1401,7 +1440,7 @@ subroutine decode( values_1, method, lastindex )
     CASE ( 7 )   !JPEG new  
       stop "JPEG lossy compression not supported!"
     CASE ( 8 )   !DEFLATE (LZ77 + Huffman)
-      call ZLIB_DEFLATE(values_1, lastIndex)
+      call ZLIB_DEFLATE(values_1, lastIndex) 
 
     CASE DEFAULT
        print*, "Compression scheme=",method; stop 'Compression method not recognized'
@@ -1409,20 +1448,51 @@ subroutine decode( values_1, method, lastindex )
 end subroutine
 
 
+subroutine packbit(values_1, lastIndex)
+    implicit none
+    integer(1), intent(inout) :: values_1(:)
+    integer, intent(in)       :: lastIndex
+    integer :: i,j,rc!,k,n
+    integer(1), allocatable   :: tmp(:)
+    integer(1)                :: num
+
+    allocate(tmp(lastIndex))
+    tmp(1:lastIndex)=values_1(1:lastIndex)        !save compressed original copy
+
+    i=1  !index on tmp       (original copy)
+    j=1  !index on values_1  (result)
+    do while ( i < lastIndex )
+       num = tmp(i)                                !pick new element of tmp
+       i=i+1 !next element
+       if ( num >= -127 .and. num < 0 ) then       !next -n+1 values are the same as values_1(k+1)
+          values_1(j:j-num+1)=tmp(i)
+          i=i+1
+          j=j-num+1
+       else if ( num >= 0 .and. num <= 127 ) then  !the next n+1 values are copied literally
+          values_1(j:j+num)=tmp(i:i+num+1)
+          i=i+num+1
+          j=j+num+1
+       else
+           cycle
+       end if
+    end do
+    
+    deallocate(tmp)  ! Clean up temporary array
+end subroutine
+
 subroutine zlib_deflate(values_1, len_in)
    implicit none
    integer(1), intent(inout) :: values_1(:)
    integer, intent(in)       :: len_in
 
-   !integer(1), allocatable   :: tmp_1(:)
    integer(kind=z_ulong)         :: len_xx, len_ou
    character(len=:), allocatable :: buff_xx,buff_ou
    integer :: i,rc
 
    len_xx = transfer([len_in],len_ou)
    len_ou = size(values_1, kind=z_ulong)
-   allocate (character(len=len_xx):: buff_xx)
-   allocate (character(len=len_ou):: buff_ou)
+   allocate (character(len=len_xx) :: buff_xx)
+   allocate (character(len=len_ou) :: buff_ou)
                                                       
    do i=1,len_xx     
      buff_xx(i:i) = transfer([values_1(i)], "a")
@@ -1436,6 +1506,8 @@ subroutine zlib_deflate(values_1, len_in)
      values_1(i) = transfer([buff_ou(i:i)], 1_1)
    end do
 
+   deallocate(buff_xx)
+   deallocate(buff_ou)
 end subroutine
 
 end module  

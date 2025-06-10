@@ -41,23 +41,27 @@ program test_tiff
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageWidth , wid)
       call TIFF_GET_TAG_VALUE(my_tiff, 1, TIFF_ImageLength, len)
 
-      !GeoTIFF procedures:
-      ![OK] GTIFF_get_Key_Value(tiff, key_id, value)
+      ![OK] GTIFF_get_Proj_Str(tiff, key_id, projStr)
+      print*, "Get Image Projection"
       call gtiff_get_proj_str(my_tiff,1, projStr)
       print*, "CRS => ",projStr
-      
-      !![OK] GTIFF_get_Image_Coordinates(tiff,i,x,y )
-      print*, "GET_IMAGE_COORDINATES.."
+       
+      ![OK] GTIFF_get_Image_Coordinates(tiff,i,x,y )
+      print*, "Get Image Coordinates.."
       allocate( x(wid,len))
       allocate( y(wid,len))
       call GTIFF_get_Image_Coordinates(my_tiff,x,y)
 
       ![~] TIFF_GET_IMGAGE(tiff, img_id, img)
-      print*, "GET_IMAGE.."
+      print*, "Get IMAGE Values.."
       allocate(image(wid,len))
       call TIFF_GET_IMAGE(my_tiff, 1, image)
 
    call TIFF_Close(my_tiff)
+  else
+     stop 'Failed to read TIFF file'
+  endif
+
 
    !print*, image
    !DEBUG ======================
@@ -69,21 +73,17 @@ program test_tiff
       call check(nf90_def_dim(ncid, "y", len, y_dim_id ))
       !Creo variables:
       call check( nf90_def_var(ncid, 'image', NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
-      !call check( nf90_def_var(ncid, 'lon'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
-      !call check( nf90_def_var(ncid, 'lat'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
+      call check( nf90_def_var(ncid, 'lon'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
+      call check( nf90_def_var(ncid, 'lat'  , NF90_FLOAT, [x_dim_id,y_dim_id], var_id ))
    call check(nf90_enddef(ncid))   !End NetCDF define mode
 
    !Abro NetCDF y guardo variables de salida
    call check(nf90_open('image.nc', nf90_write, ncid ))
       call check(nf90_inq_varid(ncid, 'image',var_id));call check(nf90_put_var(ncid, var_id,reshape(image,[wid,len]) )) 
-      !call check(nf90_inq_varid(ncid, 'lon'  ,var_id));call check(nf90_put_var(ncid, var_id,x )) 
-      !call check(nf90_inq_varid(ncid, 'lat'  ,var_id));call check(nf90_put_var(ncid, var_id,y )) 
+      call check(nf90_inq_varid(ncid, 'lon'  ,var_id));call check(nf90_put_var(ncid, var_id,x )) 
+      call check(nf90_inq_varid(ncid, 'lat'  ,var_id));call check(nf90_put_var(ncid, var_id,y )) 
    call check(nf90_close(ncid))
    !DEBUG =======================
-
-   else
-      stop 'Failed to read TIFF file'
-   endif
 
    !----------------------------------------
    !(2nd PART) Create/Write a TIFF:
